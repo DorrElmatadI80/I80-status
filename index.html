@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>i80 Group | Service Status</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Avenir Next LT Pro', 'Avenir', Calibri, Arial, sans-serif; background: #E3F6EF; padding: 0; color: #49524F; }
+.page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; }
+.brand-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 1.5rem; }
+.brand-bar .logo-text { font-size: 22px; font-weight: 700; color: #21C595; letter-spacing: 0.5px; }
+.brand-bar .logo-divider { width: 1.5px; height: 20px; background: #D1D1D1; }
+.brand-bar .logo-group { font-size: 22px; font-weight: 400; color: #49524F; }
+.container { max-width: 520px; width: 100%; background: #fff; border-radius: 10px; border: 1px solid #D1D1D1; overflow: hidden; }
+.container-header { background: #21C595; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+.container-header h1 { font-size: 16px; font-weight: 500; color: #fff; }
+.container-header .status-summary { font-size: 13px; color: rgba(255,255,255,0.85); }
+.services { padding: 0 1.5rem; }
+.service { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid #F2F2F2; }
+.service:last-child { border-bottom: none; }
+.service-left { display: flex; align-items: center; gap: 12px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #D1D1D1; flex-shrink: 0; }
+.dot.operational { background: #21C595; }
+.dot.issue { background: #C0392B; }
+.dot.degraded { background: #E67E22; }
+.dot.loading { background: #D1D1D1; }
+.service-name { font-size: 15px; color: #49524F; font-weight: 500; text-decoration: none; }
+.service-name:hover { color: #21C595; text-decoration: underline; }
+.badge { font-size: 12px; padding: 4px 12px; border-radius: 6px; font-weight: 500; }
+.badge.operational { color: #0F6E56; background: #E3F6EF; }
+.badge.issue { color: #922B21; background: #FADBD8; }
+.badge.degraded { color: #7E5109; background: #FEF5E7; }
+.badge.loading { color: #A7A7A7; background: #F2F2F2; }
+.footer { padding: 0.75rem 1.5rem; background: #F2F2F2; display: flex; justify-content: space-between; align-items: center; }
+.footer span { font-size: 11px; color: #A7A7A7; }
+.footer a { font-size: 11px; color: #21C595; text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="brand-bar">
+    <span class="logo-text">i80</span>
+    <span class="logo-divider"></span>
+    <span class="logo-group">Group</span>
+  </div>
+
+  <div class="container">
+    <div class="container-header" id="container-header">
+      <h1>Service status</h1>
+      <span class="status-summary" id="status-summary">Checking...</span>
+    </div>
+
+    <div class="services" id="services"></div>
+
+    <div class="footer">
+      <span id="last-checked">Checking...</span>
+      <span>Auto-refreshes every 60s</span>
+    </div>
+  </div>
+</div>
+
+<script>
+var services = [
+  {
+    name: 'Claude',
+    url: 'https://status.claude.com/api/v2/status.json',
+    statusPage: 'https://status.claude.com',
+    type: 'statuspage'
+  },
+  {
+    name: 'GitHub',
+    url: 'https://www.githubstatus.com/api/v2/status.json',
+    statusPage: 'https://www.githubstatus.com',
+    type: 'statuspage'
+  },
+  {
+    name: 'Microsoft 365',
+    url: 'https://login.microsoftonline.com',
+    statusPage: 'https://status.cloud.microsoft',
+    type: 'reachability'
+  }
+];
+
+function getStatusClass(indicator) {
+  if (indicator === 'operational') return 'operational';
+  if (indicator === 'degraded') return 'degraded';
+  return 'issue';
+}
+
+function getStatusLabel(indicator) {
+  if (indicator === 'operational') return 'Operational';
+  if (indicator === 'degraded') return 'Degraded';
+  if (indicator === 'minor') return 'Minor outage';
+  if (indicator === 'major') return 'Major outage';
+  if (indicator === 'critical') return 'Critical outage';
+  return indicator.charAt(0).toUpperCase() + indicator.slice(1);
+}
+
+function renderServices(results) {
+  var container = document.getElementById('services');
+  var html = '';
+  var allOperational = true;
+  var hasIssue = false;
+  var hasDegraded = false;
+
+  for (var i = 0; i < results.length; i++) {
+    var r = results[i];
+    var statusClass = r.error ? 'loading' : getStatusClass(r.indicator);
+    var statusLabel = r.error ? 'Unable to check' : getStatusLabel(r.indicator);
+
+    if (statusClass === 'issue') { hasIssue = true; allOperational = false; }
+    if (statusClass === 'degraded') { hasDegraded = true; allOperational = false; }
+    if (r.error) allOperational = false;
+
+    html += '<div class="service">';
+    html += '<div class="service-left">';
+    html += '<div class="dot ' + statusClass + '"></div>';
+    html += '<a class="service-name" href="' + r.statusPage + '" target="_blank">' + r.name + '</a>';
+    html += '</div>';
+    html += '<span class="badge ' + statusClass + '">' + statusLabel + '</span>';
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+
+  var header = document.getElementById('container-header');
+  var summary = document.getElementById('status-summary');
+
+  if (hasIssue) {
+    header.style.background = '#C0392B';
+    summary.textContent = 'Issues detected';
+  } else if (hasDegraded) {
+    header.style.background = '#E67E22';
+    summary.textContent = 'Degraded performance';
+  } else if (allOperational) {
+    header.style.background = '#21C595';
+    summary.textContent = 'All systems operational';
+  } else {
+    header.style.background = '#A7A7A7';
+    summary.textContent = 'Checking...';
+  }
+
+  var now = new Date();
+  var timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('last-checked').textContent = 'Last checked: ' + timeStr;
+}
+
+function checkStatusPage(service) {
+  return fetch(service.url)
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+      return {
+        name: service.name,
+        statusPage: service.statusPage,
+        indicator: data.status.indicator === 'none' ? 'operational' : data.status.indicator,
+        error: false
+      };
+    })
+    .catch(function() {
+      return { name: service.name, statusPage: service.statusPage, indicator: 'unknown', error: true };
+    });
+}
+
+function checkReachability(service) {
+  return fetch(service.url, { mode: 'no-cors' })
+    .then(function() {
+      return {
+        name: service.name,
+        statusPage: service.statusPage,
+        indicator: 'operational',
+        error: false
+      };
+    })
+    .catch(function() {
+      return { name: service.name, statusPage: service.statusPage, indicator: 'major', error: false };
+    });
+}
+
+function checkAll() {
+  var promises = [];
+  for (var i = 0; i < services.length; i++) {
+    if (services[i].type === 'statuspage') {
+      promises.push(checkStatusPage(services[i]));
+    } else if (services[i].type === 'reachability') {
+      promises.push(checkReachability(services[i]));
+    }
+  }
+
+  Promise.all(promises).then(function(results) {
+    renderServices(results);
+  });
+}
+
+checkAll();
+setInterval(checkAll, 60000);
+</script>
+
+</body>
+</html>
